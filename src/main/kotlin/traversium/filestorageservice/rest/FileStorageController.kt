@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.multipart.MultipartFile
-import traversium.filestorageservice.dto.PostResponse
+import traversium.filestorageservice.dto.FileDataDto
 import traversium.filestorageservice.exception.*
 import traversium.filestorageservice.service.FileStorageService
 
@@ -39,14 +39,14 @@ class FileStorageController(
                 description = "File successfully uploaded.",
                 content = [Content(
                     mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = Schema(implementation = PostResponse::class)
+                    schema = Schema(implementation = FileDataDto::class)
                 )]
             ),
             ApiResponse(responseCode = "400", description = "Bad Request - No file provided or invalid file."),
             ApiResponse(responseCode = "500", description = "Internal Server Error - Failed to upload the file to storage.")
         ]
     )
-    fun postMediaFile(@RequestParam("file") file: MultipartFile): ResponseEntity<PostResponse> {
+    fun postMediaFile(@RequestParam("file") file: MultipartFile): ResponseEntity<FileDataDto> {
         if (file.isEmpty) {
             logger.warn("Upload attempt with an empty file.")
             return ResponseEntity.badRequest().build()
