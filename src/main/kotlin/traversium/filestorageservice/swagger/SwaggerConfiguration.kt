@@ -17,7 +17,7 @@ class SwaggerConfiguration {
     @Bean
     fun openAPI(): OpenAPI {
         return OpenAPI()
-            .info(Info().title("Traversium Social Service API").version("v1"))
+            .info(Info().title("Traversium File Storage Service API").version("v1"))
             .addSecurityItem(SecurityRequirement().addList("bearerAuth"))
             .components(
                 Components().addSecuritySchemes("bearerAuth",
