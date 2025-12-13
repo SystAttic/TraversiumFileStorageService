@@ -12,6 +12,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,8 +63,8 @@ jobs:
       - name: Build and push Docker image
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_NAME=ghcr.io/$OWNER/traversium-social-service:${{ steps.project_version.outputs.version }}
-          CACHE_IMAGE=ghcr.io/$OWNER/traversium-social-service:buildcache
+          IMAGE_NAME=ghcr.io/$OWNER/traversium-file-storage-service:${{ steps.project_version.outputs.version }}
+          CACHE_IMAGE=ghcr.io/$OWNER/traversium-file-storage-service:buildcache
           echo "Building image $IMAGE_NAME"
 
           docker buildx create --use
