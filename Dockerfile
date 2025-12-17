@@ -4,4 +4,3 @@ WORKDIR /opt/filestorage-service
 
 COPY target/*.jar app.jar
 ENTRYPOINT ["java","-jar","/opt/filestorage-service/app.jar"]
-
