@@ -72,6 +72,18 @@
             <version>9.0</version>
         </dependency>
 
+        <!-- Firebase Admin SDK -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.7.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
@@ -91,6 +103,24 @@
             <groupId>com.drewnoakes</groupId>
             <artifactId>metadata-extractor</artifactId>
             <version>2.19.0</version>
+        </dependency>
+
+        <!-- Multitenancy -->
+        <dependency>
+            <groupId>traversium</groupId>
+            <artifactId>common-multitenancy</artifactId>
+            <version>1.1.0</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
     </dependencies>
 
@@ -130,5 +160,25 @@
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/SystAttic/TraversiumCommonMultitenancy</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>github-audit</id>
+            <url>https://maven.pkg.github.com/SystAttic/TraversiumAuditService</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
 </project>
