@@ -33,3 +33,6 @@ build/
 .vscode/
 
 conf/
+src/test/resources/test.jpg
+auth-test.http
+filestorage-requests.http

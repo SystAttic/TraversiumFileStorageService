@@ -12,7 +12,11 @@ import traversium.filestorageservice.dto.FileDataDto
 import java.util.*
 import java.io.IOException
 import org.apache.logging.log4j.kotlin.Logging
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.core.io.ByteArrayResource
+import traversium.audit.kafka.ActivityType
+import traversium.audit.kafka.AuditStreamData
+import traversium.audit.kafka.EntityType
 import traversium.filestorageservice.dto.GeoLocation
 import traversium.filestorageservice.exception.*
 import java.io.BufferedInputStream
@@ -78,7 +82,8 @@ private fun extractMediaDetails(
 
 @Service
 class FileStorageService(
-    private val blobContainerClient: BlobContainerClient
+    private val blobContainerClient: BlobContainerClient,
+    private val eventPublisher: ApplicationEventPublisher,
 ): Logging {
 
     fun postMediaFile(file: MultipartFile): FileDataDto {
