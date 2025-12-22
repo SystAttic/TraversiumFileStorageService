@@ -29,62 +29,62 @@ fun Date.toOffsetDateTimeUTC(): OffsetDateTime {
     return this.toInstant().atOffset(ZoneOffset.UTC)
 }
 
-private fun extractMediaDetails(
-    file: MultipartFile,
-    filename: String
-): FileDataDto {
-    val contentType = file.contentType ?: "application/octet-stream"
-    val fileType = when {
-        contentType.startsWith("image/") -> "Image"
-        contentType.startsWith("video/") -> "Video"
-        else -> "File"
-    }
-    val initialFormat = contentType.substringAfter('/')
-
-    val inputStream = BufferedInputStream(file.inputStream)
-    inputStream.mark(file.size.toInt() + 1)
-    val metadata = ImageMetadataReader.readMetadata(inputStream)
-
-    val finalformat = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.name
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.name
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.heif.HeifDirectory::class.java)?.name
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.name
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.webp.WebpDirectory::class.java)?.name
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.bmp.BmpHeaderDirectory::class.java)?.name
-        ?: initialFormat
-
-    val width = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.imageWidth
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.getInt(com.drew.metadata.png.PngDirectory.TAG_IMAGE_WIDTH)
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.getInt(com.drew.metadata.gif.GifHeaderDirectory.TAG_IMAGE_WIDTH)
-
-    val height = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.imageHeight
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.getInt(com.drew.metadata.png.PngDirectory.TAG_IMAGE_HEIGHT)
-        ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.getInt(com.drew.metadata.gif.GifHeaderDirectory.TAG_IMAGE_HEIGHT)
-
-    val exifDir = metadata.getFirstDirectoryOfType(com.drew.metadata.exif.ExifSubIFDDirectory::class.java)
-    val creationTime = exifDir?.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL, TimeZone.getDefault())
-        ?.toOffsetDateTimeUTC()
-    val gpsDir = metadata.getFirstDirectoryOfType(com.drew.metadata.exif.GpsDirectory::class.java)
-    val geoLocation = gpsDir?.geoLocation?.let { GeoLocation(it.latitude, it.longitude) }
-
-    return FileDataDto(
-        filename = filename,
-        fileType = fileType,
-        fileFormat = finalformat,
-        size = file.size,
-        width = width,
-        height = height,
-        geoLocation = geoLocation,
-        creationTime = creationTime,
-        uploadTime = OffsetDateTime.now()
-    )
-}
-
 @Service
 class FileStorageService(
     private val blobContainerClient: BlobContainerClient,
     private val eventPublisher: ApplicationEventPublisher,
 ): Logging {
+
+    fun extractMediaDetails(
+        file: MultipartFile,
+        filename: String
+    ): FileDataDto {
+        val contentType = file.contentType ?: "application/octet-stream"
+        val fileType = when {
+            contentType.startsWith("image/") -> "Image"
+            contentType.startsWith("video/") -> "Video"
+            else -> "File"
+        }
+        val initialFormat = contentType.substringAfter('/')
+
+        val inputStream = BufferedInputStream(file.inputStream)
+        inputStream.mark(file.size.toInt() + 1)
+        val metadata = ImageMetadataReader.readMetadata(inputStream)
+
+        val finalformat = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.name
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.name
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.heif.HeifDirectory::class.java)?.name
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.name
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.webp.WebpDirectory::class.java)?.name
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.bmp.BmpHeaderDirectory::class.java)?.name
+            ?: initialFormat
+
+        val width = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.imageWidth
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.getInt(com.drew.metadata.png.PngDirectory.TAG_IMAGE_WIDTH)
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.getInt(com.drew.metadata.gif.GifHeaderDirectory.TAG_IMAGE_WIDTH)
+
+        val height = metadata.getFirstDirectoryOfType(com.drew.metadata.jpeg.JpegDirectory::class.java)?.imageHeight
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.png.PngDirectory::class.java)?.getInt(com.drew.metadata.png.PngDirectory.TAG_IMAGE_HEIGHT)
+            ?: metadata.getFirstDirectoryOfType(com.drew.metadata.gif.GifHeaderDirectory::class.java)?.getInt(com.drew.metadata.gif.GifHeaderDirectory.TAG_IMAGE_HEIGHT)
+
+        val exifDir = metadata.getFirstDirectoryOfType(com.drew.metadata.exif.ExifSubIFDDirectory::class.java)
+        val creationTime = exifDir?.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL, TimeZone.getDefault())
+            ?.toOffsetDateTimeUTC()
+        val gpsDir = metadata.getFirstDirectoryOfType(com.drew.metadata.exif.GpsDirectory::class.java)
+        val geoLocation = gpsDir?.geoLocation?.let { GeoLocation(it.latitude, it.longitude) }
+
+        return FileDataDto(
+            filename = filename,
+            fileType = fileType,
+            fileFormat = finalformat,
+            size = file.size,
+            width = width,
+            height = height,
+            geoLocation = geoLocation,
+            creationTime = creationTime,
+            uploadTime = OffsetDateTime.now()
+        )
+    }
 
     fun postMediaFile(file: MultipartFile): FileDataDto {
         val fileExtension = file.originalFilename?.substringAfterLast(".", "")
