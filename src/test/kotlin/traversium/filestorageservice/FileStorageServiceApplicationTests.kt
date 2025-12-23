@@ -1,6 +1,7 @@
 package traversium.filestorageservice
 
 import com.azure.storage.blob.BlobContainerClient
+import com.azure.storage.blob.BlobServiceClient
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.ninjasquad.springmockk.MockkBean
@@ -22,7 +23,7 @@ import org.springframework.test.context.ActiveProfiles
 class FileStorageServiceApplicationTests {
 
     @MockkBean(relaxed = true)
-    lateinit var blobContainerClient: BlobContainerClient
+    lateinit var blobServiceClient: BlobServiceClient
 
     @MockkBean(relaxed = true)
     lateinit var firebaseAuth: FirebaseAuth

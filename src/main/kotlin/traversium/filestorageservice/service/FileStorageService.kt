@@ -1,6 +1,7 @@
 package traversium.filestorageservice.service
 
 import com.azure.storage.blob.BlobContainerClient
+import com.azure.storage.blob.BlobServiceClient
 import com.azure.storage.blob.models.BlobHttpHeaders
 import com.azure.storage.blob.models.BlobStorageException
 import com.drew.imaging.ImageMetadataReader
@@ -14,9 +15,7 @@ import java.io.IOException
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.core.io.ByteArrayResource
-import traversium.audit.kafka.ActivityType
-import traversium.audit.kafka.AuditStreamData
-import traversium.audit.kafka.EntityType
+import traversium.commonmultitenancy.TenantContext
 import traversium.filestorageservice.dto.GeoLocation
 import traversium.filestorageservice.exception.*
 import java.io.BufferedInputStream
@@ -31,7 +30,7 @@ fun Date.toOffsetDateTimeUTC(): OffsetDateTime {
 
 @Service
 class FileStorageService(
-    private val blobContainerClient: BlobContainerClient,
+    private val blobServiceClient: BlobServiceClient,
     private val eventPublisher: ApplicationEventPublisher,
 ): Logging {
 
@@ -86,19 +85,41 @@ class FileStorageService(
         )
     }
 
+    //stores containers that were already verified/created during the current application lifecycle
+    private val verifiedContainers = mutableSetOf<String>()
+
+    private fun getTenantContainer(): BlobContainerClient {
+        val rawTenantId = TenantContext.getTenant() ?: "public"
+
+        //Rename tenant to lowercase, alphanumeric and hyphens only
+        val sanitizedTenant = rawTenantId.lowercase().replace(Regex("[^a-z0-9-]"), "-")
+        val containerName = "media-$sanitizedTenant"
+
+        val containerClient = blobServiceClient.getBlobContainerClient(containerName)
+
+        if (!containerClient.exists()) {
+            logger.info("New tenant detected: Creating container $containerName")
+            containerClient.create()
+        }
+
+        if (!verifiedContainers.contains(containerName)) {
+            //Create the container if it doesn't exist yet
+            if (!containerClient.exists()) {
+                containerClient.create()
+            }
+            verifiedContainers.add(containerName)
+        }
+
+        return containerClient
+    }
+
     fun postMediaFile(file: MultipartFile): FileDataDto {
         val fileExtension = file.originalFilename?.substringAfterLast(".", "")
         val uniqueFilename = "${UUID.randomUUID()}$.$fileExtension"
 
-        val blobClient = blobContainerClient.getBlobClient(uniqueFilename)
-
-        val contentType = file.contentType ?: "application/octet-stream"
-        val fileType = when {
-            contentType.startsWith("image") -> "image"
-            contentType.startsWith("video") -> "video"
-            else -> "file"
-        }
-        val fileFormat = contentType.substringAfter('/')
+        // Get the dynamic container
+        val containerClient = getTenantContainer()
+        val blobClient = containerClient.getBlobClient(uniqueFilename)
 
         try {
             val headers = BlobHttpHeaders().setContentType(file.contentType)
@@ -120,7 +141,8 @@ class FileStorageService(
     }
 
     fun getMediaFile(filename: String): FileDownload {
-        val blobClient = blobContainerClient.getBlobClient(filename)
+        val containerClient = getTenantContainer()
+        val blobClient = containerClient.getBlobClient(filename)
 
         try {
             if(!blobClient.exists()){
@@ -141,7 +163,8 @@ class FileStorageService(
     }
 
     fun deleteMediaFile(filename: String) {
-        val blobClient = blobContainerClient.getBlobClient(filename)
+        val containerClient = getTenantContainer()
+        val blobClient = containerClient.getBlobClient(filename)
 
         try {
             val deleted = blobClient.deleteIfExists()

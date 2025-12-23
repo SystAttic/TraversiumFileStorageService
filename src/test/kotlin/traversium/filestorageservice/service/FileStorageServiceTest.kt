@@ -3,6 +3,7 @@ package traversium.filestorageservice.service
 import com.azure.core.util.BinaryData
 import com.azure.storage.blob.BlobClient
 import com.azure.storage.blob.BlobContainerClient
+import com.azure.storage.blob.BlobServiceClient
 import com.azure.storage.blob.models.BlobProperties
 import com.azure.storage.blob.models.BlobStorageException
 import com.drew.imaging.ImageMetadataReader
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.mock.web.MockMultipartFile
+import traversium.commonmultitenancy.TenantContext
 import traversium.filestorageservice.exception.FileDeleteException
 import traversium.filestorageservice.exception.FileDownloadException
 import traversium.filestorageservice.exception.FileNotFoundException
@@ -28,6 +30,9 @@ import java.io.InputStream
 
 @ExtendWith(MockKExtension::class)
 class FileStorageServiceTest {
+
+    @MockK
+    lateinit var blobServiceClient: BlobServiceClient
 
     @MockK
     lateinit var blobContainerClient: BlobContainerClient
@@ -44,13 +49,20 @@ class FileStorageServiceTest {
     @BeforeEach
     fun setUp() {
         mockkStatic(ImageMetadataReader::class)
-        // Default behavior for the container mock
+
+        TenantContext.setTenant("test-tenant")
+
+        every { blobServiceClient.getBlobContainerClient(any()) } returns blobContainerClient
         every { blobContainerClient.getBlobClient(any()) } returns blobClient
+
+        every { blobContainerClient.exists() } returns true
+        every { blobContainerClient.create() } just runs
     }
 
     @AfterEach
     fun tearDown() {
         unmockkStatic(ImageMetadataReader::class)
+        TenantContext.clear()
     }
 
     // --- UPLOAD TESTS ---
