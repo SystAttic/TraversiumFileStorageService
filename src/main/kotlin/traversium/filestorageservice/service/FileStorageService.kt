@@ -15,9 +15,15 @@ import java.io.IOException
 import org.apache.logging.log4j.kotlin.Logging
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.core.io.ByteArrayResource
+import org.springframework.security.core.context.SecurityContextHolder
+import traversium.audit.kafka.ActivityType
+import traversium.audit.kafka.AuditStreamData
+import traversium.audit.kafka.EntityType
 import traversium.commonmultitenancy.TenantContext
 import traversium.filestorageservice.dto.GeoLocation
 import traversium.filestorageservice.exception.*
+import traversium.filestorageservice.security.TraversiumAuthentication
+import traversium.filestorageservice.security.TraversiumPrincipal
 import java.io.BufferedInputStream
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -85,6 +91,43 @@ class FileStorageService(
         )
     }
 
+    private fun getCurrentUserId(): Long {
+        val authentication = SecurityContextHolder.getContext().authentication as? TraversiumAuthentication
+            ?: throw IllegalStateException("Authentication not found")
+
+        val principal = authentication.principal as? TraversiumPrincipal
+            ?: throw IllegalStateException("Principal not found")
+
+        return kotlin.math.abs(principal.uid.hashCode().toLong())
+    }
+
+    private fun getCurrentUserFirebaseId(): String {
+        val authentication = SecurityContextHolder.getContext().authentication as? TraversiumAuthentication
+            ?: throw IllegalStateException("Authentication not found")
+
+        val principal = authentication.principal as? TraversiumPrincipal
+            ?: throw IllegalStateException("Principal not found")
+
+        return principal.uid
+    }
+
+    private fun publishAuditEvent(userId: String, action: String, filename: String) {
+        val auditEvent = AuditStreamData(
+            timestamp = OffsetDateTime.now(),
+            userId = userId,
+            activityType = ActivityType.FILE_STORAGE_ACTIVITY,
+            action = action,
+            entityType = EntityType.MEDIA_FILE,
+            entityId = null,
+            tripId = null,
+            metadata = mapOf(
+                "filename" to filename,
+                "entityType" to "MEDIA_FILE"
+            )
+        )
+        eventPublisher.publishEvent(auditEvent)
+    }
+
     //stores containers that were already verified/created during the current application lifecycle
     private val verifiedContainers = mutableSetOf<String>()
 
@@ -129,6 +172,8 @@ class FileStorageService(
             val properties = blobClient.properties
             logger.info("Successfully upoaded file: $uniqueFilename with size ${properties.blobSize}")
 
+            publishAuditEvent(getCurrentUserFirebaseId(), "FILE_UPLOADED", uniqueFilename)
+
             return extractMediaDetails(file, uniqueFilename)
         } catch (e: BlobStorageException) {
             logger.error("Azure Storage Error during upload for blob: $uniqueFilename", e)
@@ -171,6 +216,7 @@ class FileStorageService(
 
             if(deleted){
                 logger.info("Successfully deleted file: $filename")
+                publishAuditEvent(getCurrentUserFirebaseId(), "FILE_DELETED", filename)
             } else {
                 logger.warn("Delete requested for non-existent file '$filename'")
             }
