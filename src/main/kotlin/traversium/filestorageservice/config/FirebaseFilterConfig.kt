@@ -33,6 +33,7 @@ class FirebaseFilterConfig {
                     .requestMatchers("/actuator/health").permitAll()
                     .requestMatchers("/actuator/prometheus/**").permitAll()
                     .requestMatchers("/actuator/prometheus").permitAll()
+                    .requestMatchers("/actuator/**").permitAll()
                     .requestMatchers("/graphql").authenticated()
                     .requestMatchers("/rest/**").authenticated()
 

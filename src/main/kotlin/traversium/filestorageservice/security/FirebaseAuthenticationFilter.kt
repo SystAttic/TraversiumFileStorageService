@@ -80,7 +80,8 @@ class FirebaseAuthenticationFilter(
             "/v3/api-docs",
             "/swagger-resources",
             "/actuator/health",
-            "/actuator/prometheus"
+            "/actuator/prometheus",
+            "/actuator/",
         )
 
         return path in exactPaths || prefixPaths.any { path.startsWith(it) }
