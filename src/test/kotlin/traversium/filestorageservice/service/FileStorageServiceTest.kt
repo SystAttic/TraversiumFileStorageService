@@ -20,11 +20,16 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.mock.web.MockMultipartFile
+import org.springframework.security.core.context.SecurityContext
+import org.springframework.security.core.context.SecurityContextHolder
+import traversium.audit.kafka.AuditStreamData
 import traversium.commonmultitenancy.TenantContext
 import traversium.filestorageservice.exception.FileDeleteException
 import traversium.filestorageservice.exception.FileDownloadException
 import traversium.filestorageservice.exception.FileNotFoundException
 import traversium.filestorageservice.exception.FileUploadException
+import traversium.filestorageservice.security.TraversiumAuthentication
+import traversium.filestorageservice.security.TraversiumPrincipal
 import java.io.IOException
 import java.io.InputStream
 
@@ -49,6 +54,7 @@ class FileStorageServiceTest {
     @BeforeEach
     fun setUp() {
         mockkStatic(ImageMetadataReader::class)
+        mockkStatic(SecurityContextHolder::class)
 
         TenantContext.setTenant("test-tenant")
 
@@ -57,6 +63,20 @@ class FileStorageServiceTest {
 
         every { blobContainerClient.exists() } returns true
         every { blobContainerClient.create() } just runs
+
+        val mockContext = mockk<SecurityContext>()
+        val mockPrincipal = TraversiumPrincipal(uid = "test-firebase-id", email = "test@test.com", photoUrl = null)
+        val mockAuth = TraversiumAuthentication(
+            principal = mockPrincipal,
+            details = null,
+            authorities = emptyList(),
+            token = "fake-token"
+        )
+
+        every { SecurityContextHolder.getContext() } returns mockContext
+        every { mockContext.authentication } returns mockAuth
+
+        every { eventPublisher.publishEvent(any<AuditStreamData>()) } just runs
     }
 
     @AfterEach
@@ -87,6 +107,9 @@ class FileStorageServiceTest {
         assertEquals("Image", result.fileType)
         assertTrue(result.filename.endsWith(".jpg"))
         verify { blobClient.upload(any(), file.size, true) }
+
+        //verify that the event was published
+        verify { eventPublisher.publishEvent(any<AuditStreamData>()) }
     }
 
     @Test
@@ -102,6 +125,9 @@ class FileStorageServiceTest {
 
         assertEquals("Video", result.fileType)
         assertEquals("mp4", result.fileFormat)
+
+        //verify that the event was published
+        verify { eventPublisher.publishEvent(any<AuditStreamData>()) }
     }
 
     @Test
@@ -180,6 +206,9 @@ class FileStorageServiceTest {
         fileStorageService.deleteMediaFile("delete-me.jpg")
 
         verify { blobClient.deleteIfExists() }
+
+        //verify that the event was published
+        verify { eventPublisher.publishEvent(any<AuditStreamData>()) }
     }
 
     @Test
