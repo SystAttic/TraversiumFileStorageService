@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.test.context.ActiveProfiles
+import traversium.filestorageservice.restclient.TripServiceClient
 
 @SpringBootTest(properties = [
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1",
@@ -33,6 +34,9 @@ class FileStorageServiceApplicationTests {
 
     @MockkBean(relaxed = true)
     lateinit var kafkaTemplate: KafkaTemplate<String, Any>
+
+    @MockkBean(relaxed = true)
+    lateinit var tripServiceClient: TripServiceClient
 
     @Test
     fun contextLoads() {

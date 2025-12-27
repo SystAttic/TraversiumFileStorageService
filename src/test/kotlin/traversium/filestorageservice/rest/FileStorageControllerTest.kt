@@ -129,6 +129,17 @@ class FileStorageControllerTest {
             .andExpect(status().isInternalServerError)
     }
 
+    @Test
+    @WithMockUser
+    fun `downloadFile - Should return 403 when user is unauthorized`() {
+        val filename = "secret.jpg"
+
+        every { fileStorageService.getMediaFile(filename) } throws UnauthorizedMediaAcessException("Forbidden")
+
+        mockMvc.perform(get("$baseUrl/$filename"))
+            .andExpect(status().isForbidden) // Expect 403
+    }
+
     // --- DELETE TESTS ---
 
     @Test

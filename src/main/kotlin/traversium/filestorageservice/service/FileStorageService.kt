@@ -22,6 +22,7 @@ import traversium.audit.kafka.EntityType
 import traversium.commonmultitenancy.TenantContext
 import traversium.filestorageservice.dto.GeoLocation
 import traversium.filestorageservice.exception.*
+import traversium.filestorageservice.restclient.TripServiceClient
 import traversium.filestorageservice.security.TraversiumAuthentication
 import traversium.filestorageservice.security.TraversiumPrincipal
 import java.io.BufferedInputStream
@@ -38,6 +39,7 @@ fun Date.toOffsetDateTimeUTC(): OffsetDateTime {
 class FileStorageService(
     private val blobServiceClient: BlobServiceClient,
     private val eventPublisher: ApplicationEventPublisher,
+    private val tripServiceClient: TripServiceClient
 ): Logging {
 
     fun extractMediaDetails(
@@ -109,6 +111,13 @@ class FileStorageService(
             ?: throw IllegalStateException("Principal not found")
 
         return principal.uid
+    }
+
+    private fun getAuthorizationHeader(): String? {
+        val authentication = SecurityContextHolder.getContext().authentication as? TraversiumAuthentication
+            ?: return null
+
+        return authentication.token?.let { "Bearer $it" }
     }
 
     private fun publishAuditEvent(userId: String, action: String, filename: String) {
@@ -189,6 +198,10 @@ class FileStorageService(
         val containerClient = getTenantContainer()
         val blobClient = containerClient.getBlobClient(filename)
 
+        if(!tripServiceClient.checkViewPermission(filename, getAuthorizationHeader())) {
+            throw UnauthorizedMediaAcessException("User not allowed to view media file")
+        }
+
         try {
             if(!blobClient.exists()){
                 logger.warn("File not found: Download requested for non-existent blob '$filename'")
@@ -197,8 +210,6 @@ class FileStorageService(
 
             val data = blobClient.downloadContent().toBytes()
             val contentType = blobClient.properties.contentType
-
-            //logger.info("Successfully downloaded file '$filename' with content type '$contentType'")
 
             return FileDownload(resource = ByteArrayResource(data), contentType = contentType)
         } catch (e: BlobStorageException) {

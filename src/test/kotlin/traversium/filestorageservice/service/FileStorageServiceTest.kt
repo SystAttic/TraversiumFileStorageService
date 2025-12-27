@@ -28,6 +28,8 @@ import traversium.filestorageservice.exception.FileDeleteException
 import traversium.filestorageservice.exception.FileDownloadException
 import traversium.filestorageservice.exception.FileNotFoundException
 import traversium.filestorageservice.exception.FileUploadException
+import traversium.filestorageservice.exception.UnauthorizedMediaAcessException
+import traversium.filestorageservice.restclient.TripServiceClient
 import traversium.filestorageservice.security.TraversiumAuthentication
 import traversium.filestorageservice.security.TraversiumPrincipal
 import java.io.IOException
@@ -47,6 +49,9 @@ class FileStorageServiceTest {
 
     @MockK
     lateinit var eventPublisher: ApplicationEventPublisher
+
+    @MockK
+    lateinit var tripServiceClient: TripServiceClient
 
     @InjectMockKs
     lateinit var fileStorageService: FileStorageService
@@ -77,6 +82,8 @@ class FileStorageServiceTest {
         every { mockContext.authentication } returns mockAuth
 
         every { eventPublisher.publishEvent(any<AuditStreamData>()) } just runs
+
+        every { tripServiceClient.checkViewPermission(any(), any()) } returns true
     }
 
     @AfterEach
@@ -196,6 +203,20 @@ class FileStorageServiceTest {
             fileStorageService.getMediaFile("error.jpg")
         }
     }
+
+    @Test
+    fun `getMediaFile - Should throw UnauthorizedMediaAcessException when permission denied`() {
+        val filename = "private-file.jpg"
+
+        every { tripServiceClient.checkViewPermission(filename, any()) } returns false
+
+        assertThrows<UnauthorizedMediaAcessException> {
+            fileStorageService.getMediaFile(filename)
+        }
+
+        verify(exactly = 0) { blobClient.downloadContent() }
+    }
+
 
     // --- DELETE TESTS ---
 
