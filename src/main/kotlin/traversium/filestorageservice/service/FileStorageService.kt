@@ -20,6 +20,8 @@ import traversium.audit.kafka.ActivityType
 import traversium.audit.kafka.AuditStreamData
 import traversium.audit.kafka.EntityType
 import traversium.commonmultitenancy.TenantContext
+import traversium.filestorageservice.db.model.MediaOwnership
+import traversium.filestorageservice.db.repository.MediaOwnershipRepository
 import traversium.filestorageservice.dto.GeoLocation
 import traversium.filestorageservice.exception.*
 import traversium.filestorageservice.restclient.TripServiceClient
@@ -39,7 +41,8 @@ fun Date.toOffsetDateTimeUTC(): OffsetDateTime {
 class FileStorageService(
     private val blobServiceClient: BlobServiceClient,
     private val eventPublisher: ApplicationEventPublisher,
-    private val tripServiceClient: TripServiceClient
+    private val tripServiceClient: TripServiceClient,
+    private val mediaOwnershipRepository: MediaOwnershipRepository,
 ): Logging {
 
     fun extractMediaDetails(
@@ -168,6 +171,7 @@ class FileStorageService(
     fun postMediaFile(file: MultipartFile): FileDataDto {
         val fileExtension = file.originalFilename?.substringAfterLast(".", "")
         val uniqueFilename = "${UUID.randomUUID()}$.$fileExtension"
+        val userId = getCurrentUserFirebaseId()
 
         // Get the dynamic container
         val containerClient = getTenantContainer()
@@ -180,6 +184,13 @@ class FileStorageService(
 
             val properties = blobClient.properties
             logger.info("Successfully upoaded file: $uniqueFilename with size ${properties.blobSize}")
+
+            // Store media ownership
+            val metadata = MediaOwnership(
+                filename = uniqueFilename,
+                ownerId = userId,
+            )
+            mediaOwnershipRepository.save(metadata)
 
             publishAuditEvent(getCurrentUserFirebaseId(), "FILE_UPLOADED", uniqueFilename)
 
@@ -219,6 +230,17 @@ class FileStorageService(
     }
 
     fun deleteMediaFile(filename: String) {
+        val currentUserId = getCurrentUserFirebaseId()
+
+        //Check media ownership
+        val ownership = mediaOwnershipRepository.findByFilename(filename)
+            ?: throw FileNotFoundException("File not found or you do not have access to it.")
+
+        if (ownership.ownerId != currentUserId) {
+            logger.warn("Security Breach Attempt: User $currentUserId tried to delete file owned by ${ownership.ownerId}")
+            throw UnauthorizedFileDeletionException("You are not the owner of this file.")
+        }
+
         val containerClient = getTenantContainer()
         val blobClient = containerClient.getBlobClient(filename)
 
@@ -227,7 +249,11 @@ class FileStorageService(
 
             if(deleted){
                 logger.info("Successfully deleted file: $filename")
+
+                mediaOwnershipRepository.delete(ownership)
+
                 publishAuditEvent(getCurrentUserFirebaseId(), "FILE_DELETED", filename)
+
             } else {
                 logger.warn("Delete requested for non-existent file '$filename'")
             }

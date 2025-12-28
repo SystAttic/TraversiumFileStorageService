@@ -168,4 +168,18 @@ class FileStorageControllerTest {
         )
             .andExpect(status().isInternalServerError)
     }
+
+    @Test
+    @WithMockUser
+    fun `deleteFile - Should return 403 when user is not the owner`() {
+        val filename = "not-mine.jpg"
+
+        every { fileStorageService.deleteMediaFile(filename) } throws UnauthorizedFileDeletionException("Not owner")
+
+        mockMvc.perform(
+            delete("/rest/v1/media/$filename")
+                .with(csrf())
+        )
+            .andExpect(status().isForbidden)
+    }
 }

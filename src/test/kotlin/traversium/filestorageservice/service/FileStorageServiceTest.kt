@@ -24,10 +24,13 @@ import org.springframework.security.core.context.SecurityContext
 import org.springframework.security.core.context.SecurityContextHolder
 import traversium.audit.kafka.AuditStreamData
 import traversium.commonmultitenancy.TenantContext
+import traversium.filestorageservice.db.model.MediaOwnership
+import traversium.filestorageservice.db.repository.MediaOwnershipRepository
 import traversium.filestorageservice.exception.FileDeleteException
 import traversium.filestorageservice.exception.FileDownloadException
 import traversium.filestorageservice.exception.FileNotFoundException
 import traversium.filestorageservice.exception.FileUploadException
+import traversium.filestorageservice.exception.UnauthorizedFileDeletionException
 import traversium.filestorageservice.exception.UnauthorizedMediaAcessException
 import traversium.filestorageservice.restclient.TripServiceClient
 import traversium.filestorageservice.security.TraversiumAuthentication
@@ -53,8 +56,13 @@ class FileStorageServiceTest {
     @MockK
     lateinit var tripServiceClient: TripServiceClient
 
+    @MockK
+    lateinit var mediaOwnershipRepository: MediaOwnershipRepository
+
     @InjectMockKs
     lateinit var fileStorageService: FileStorageService
+
+    private val testUserId = "user-123"
 
     @BeforeEach
     fun setUp() {
@@ -70,7 +78,7 @@ class FileStorageServiceTest {
         every { blobContainerClient.create() } just runs
 
         val mockContext = mockk<SecurityContext>()
-        val mockPrincipal = TraversiumPrincipal(uid = "test-firebase-id", email = "test@test.com", photoUrl = null)
+        val mockPrincipal = TraversiumPrincipal(uid = testUserId, email = "test@test.com", photoUrl = null)
         val mockAuth = TraversiumAuthentication(
             principal = mockPrincipal,
             details = null,
@@ -84,6 +92,8 @@ class FileStorageServiceTest {
         every { eventPublisher.publishEvent(any<AuditStreamData>()) } just runs
 
         every { tripServiceClient.checkViewPermission(any(), any()) } returns true
+
+        every { mediaOwnershipRepository.save(any()) } returns mockk()
     }
 
     @AfterEach
@@ -114,6 +124,13 @@ class FileStorageServiceTest {
         assertEquals("Image", result.fileType)
         assertTrue(result.filename.endsWith(".jpg"))
         verify { blobClient.upload(any(), file.size, true) }
+
+        //verify database save
+        verify(exactly = 1) {
+            mediaOwnershipRepository.save(match {
+                it.ownerId == testUserId && it.filename == result.filename
+            })
+        }
 
         //verify that the event was published
         verify { eventPublisher.publishEvent(any<AuditStreamData>()) }
@@ -221,33 +238,77 @@ class FileStorageServiceTest {
     // --- DELETE TESTS ---
 
     @Test
-    fun `deleteMediaFile - Success`() {
+    fun `deleteMediaFile - Success when user is the owner`() {
+        val filename = "my-file$.jpg"
+        val metadata = MediaOwnership(
+            filename = filename,
+            ownerId = testUserId, // Matches the logged-in user
+        )
+
+        every { mediaOwnershipRepository.findByFilename(filename) } returns metadata
+        every { mediaOwnershipRepository.delete(metadata) } just runs
         every { blobClient.deleteIfExists() } returns true
 
-        fileStorageService.deleteMediaFile("delete-me.jpg")
+        fileStorageService.deleteMediaFile(filename)
 
-        verify { blobClient.deleteIfExists() }
-
-        //verify that the event was published
-        verify { eventPublisher.publishEvent(any<AuditStreamData>()) }
+        verify(exactly = 1) { blobClient.deleteIfExists() }
+        verify(exactly = 1) { mediaOwnershipRepository.delete(metadata) }
     }
 
     @Test
     fun `deleteMediaFile - Handles non-existent file gracefully`() {
+        val filename = "non-existent.jpg"
+        val metadata = MediaOwnership(
+            filename = filename,
+            ownerId = testUserId, // Matches the logged-in user
+        )
+
+        every { mediaOwnershipRepository.findByFilename(filename) } returns metadata
+        every { mediaOwnershipRepository.delete(metadata) } just runs
+
         every { blobClient.deleteIfExists() } returns false
 
-        fileStorageService.deleteMediaFile("non-existent.jpg")
+        fileStorageService.deleteMediaFile(filename)
 
         verify { blobClient.deleteIfExists() }
     }
 
     @Test
     fun `deleteMediaFile - Throws FileDeleteException on Azure Error`() {
+        val filename = "fail.jpg"
+        val metadata = MediaOwnership(
+            filename = filename,
+            ownerId = testUserId, // Matches the logged-in user
+        )
+
+        every { mediaOwnershipRepository.findByFilename(filename) } returns metadata
+        every { mediaOwnershipRepository.delete(metadata) } just runs
+
         every { blobClient.deleteIfExists() } throws mockk<BlobStorageException>()
 
         assertThrows<FileDeleteException> {
-            fileStorageService.deleteMediaFile("fail.jpg")
+            fileStorageService.deleteMediaFile(filename)
         }
+    }
+
+    @Test
+    fun `deleteMediaFile - Throws UnauthorizedFileDeletionException when user is NOT the owner`() {
+        val filename = "someone-elses-file$.jpg"
+        val metadata = MediaOwnership(
+            filename = filename,
+            ownerId = "other-user", // Does NOT match testUserId
+        )
+
+        every { mediaOwnershipRepository.findByFilename(filename) } returns metadata
+
+        assertThrows<UnauthorizedFileDeletionException> {
+            fileStorageService.deleteMediaFile(filename)
+        }
+
+        // Verify that Azure delete was NEVER called
+        verify(exactly = 0) { blobClient.deleteIfExists() }
+        // Verify that DB delete was NEVER called
+        verify(exactly = 0) { mediaOwnershipRepository.delete(any()) }
     }
 
 }
