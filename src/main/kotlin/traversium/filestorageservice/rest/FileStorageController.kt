@@ -43,6 +43,7 @@ class FileStorageController(
                 )]
             ),
             ApiResponse(responseCode = "400", description = "Bad Request - No file provided or invalid file."),
+            ApiResponse(responseCode = "401", description = "No authentication given"),
             ApiResponse(responseCode = "500", description = "Internal Server Error - Failed to upload the file to storage.")
         ]
     )
@@ -66,6 +67,8 @@ class FileStorageController(
         summary = "Get a file by its unique filename.",
         responses = [
             ApiResponse(responseCode = "200",description = "File content successfully retrieved."),
+            ApiResponse(responseCode = "401", description = "No authentication given"),
+            ApiResponse(responseCode = "403", description = "User can't view media file"),
             ApiResponse(responseCode = "404", description = "File not found."),
             ApiResponse(responseCode = "500", description = "Internal Server Error - Failed to download the file.")
         ]
@@ -90,6 +93,8 @@ class FileStorageController(
         summary = "Delete a file by its unique filename.",
         responses = [
             ApiResponse(responseCode = "204", description = "File successfully deleted."),
+            ApiResponse(responseCode = "401", description = "No authentication given"),
+            ApiResponse(responseCode = "403", description = "User in not owner of the meda file"),
             ApiResponse(responseCode = "500", description = "Internal Server Error - Failed to delete the file.")
         ]
     )
