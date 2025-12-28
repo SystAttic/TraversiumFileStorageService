@@ -1,0 +1,1 @@
+ALTER TABLE media_metadata RENAME TO media_ownership;
