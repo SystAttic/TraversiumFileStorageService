@@ -35,12 +35,16 @@ class FirebaseAuthenticationFilter(
 
             val tenantId = TenantUtils.desanitizeTenantIdFromSchema(TenantContext.getTenant())
 
-            val userRecord = try {
-                val tenantAuth = firebaseAuth.tenantManager.getAuthForTenant(tenantId)
-                tenantAuth.getUser(uid)
-            } catch (e: FirebaseAuthException) {
-                logger.error("Failed to get user from tenant $tenantId: ${e.message}")
-                throw e
+            val userRecord = if (tenantId != "public") {
+                try {
+                    val tenantAuth = firebaseAuth.tenantManager.getAuthForTenant(tenantId)
+                    tenantAuth.getUser(uid)
+                } catch (e: FirebaseAuthException) {
+                    logger.error("Failed to get user from tenant $tenantId: ${e.message}")
+                    throw e
+                }
+            } else {
+                firebaseAuth.getUser(uid)
             }
 
             SecurityContextHolder.getContext().authentication = TraversiumAuthentication(
