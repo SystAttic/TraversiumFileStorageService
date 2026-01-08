@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
+import traversium.commonmultitenancy.TenantContext
+import traversium.commonmultitenancy.TenantUtils
 
 @Component
 class TripServiceClient(
@@ -16,6 +18,7 @@ class TripServiceClient(
         return tripServiceWebClient.get()
             .uri("/rest/v1/media/path/{pathUrl}", pathUrl)
             .header(HttpHeaders.AUTHORIZATION, token)
+            .header("X-Tenant-Id", TenantUtils.desanitizeTenantIdFromSchema(TenantContext.getTenant()))
             .exchangeToMono { response ->
                 when (response.statusCode()) {
                     HttpStatus.OK, HttpStatus.NOT_FOUND -> Mono.just(true)
